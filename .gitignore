@@ -1,0 +1,57 @@
+# =========================================
+# DealDive monorepo .gitignore
+# Folders: dealdive_clean_new/ (Flutter app), dealscrubber/ (Python backend)
+# =========================================
+
+# --- SECRETS (never commit these) ---
+firebase_credentials.json
+firebase_credentials.json.json
+dealscrubber/firebase_credentials.json
+*.env
+.env
+.env.*
+*.pem
+*.key
+serviceAccountKey.json
+
+# --- Python backend (dealscrubber/) ---
+dealscrubber/__pycache__/
+dealscrubber/**/__pycache__/
+*.pyc
+*.pyo
+dealscrubber/venv/
+dealscrubber/.venv/
+dealscrubber/env/
+dealscrubber/data/
+dealscrubber/logs/
+dealscrubber/*.log
+dealscrubber/.pytest_cache/
+dealscrubber/*.egg-info/
+
+# --- Flutter frontend (dealdive_clean_new/) ---
+dealdive_clean_new/build/
+dealdive_clean_new/.dart_tool/
+dealdive_clean_new/.flutter-plugins
+dealdive_clean_new/.flutter-plugins-dependencies
+dealdive_clean_new/.packages
+dealdive_clean_new/.pub-cache/
+dealdive_clean_new/.pub/
+dealdive_clean_new/android/.gradle/
+dealdive_clean_new/android/local.properties
+dealdive_clean_new/android/key.properties
+dealdive_clean_new/android/**/GeneratedPluginRegistrant.java
+dealdive_clean_new/ios/Pods/
+dealdive_clean_new/ios/.symlinks/
+dealdive_clean_new/ios/Flutter/Flutter.framework
+dealdive_clean_new/ios/Flutter/Flutter.podspec
+dealdive_clean_new/ios/Runner.xcworkspace/xcshareddata/
+dealdive_clean_new/**/*.g.dart.bak
+dealdive_clean_new/coverage/
+
+# --- OS / editor cruft ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+*.swp

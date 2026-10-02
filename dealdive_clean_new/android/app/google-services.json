@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "1018216232414",
+    "project_id": "dealdive-e7d2b",
+    "storage_bucket": "dealdive-e7d2b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1018216232414:android:b2fe4b9a786bb3de50594f",
+        "android_client_info": {
+          "package_name": "com.example.dealdive_clean_new"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1018216232414-vll309jq9h0mssvmvop5kutvivagj6su.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.dealdive_clean_new",
+            "certificate_hash": "37d1ce1a8c0cd4e3d7cff421deb9251024a7e9b6"
+          }
+        },
+        {
+          "client_id": "1018216232414-bi3nn1uf1836ea6si1rfsf6qt2hdir8q.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDAKXuvQVBB5Xj4t9DOai-Mv4_oGs7xo5Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1018216232414-bi3nn1uf1836ea6si1rfsf6qt2hdir8q.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1018216232414-ig39duvffh90s8ejea5svd7g02kabrmf.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.dealdiveClean"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -3,9 +3,14 @@ from datetime import datetime, timezone, timedelta
 
 logger = logging.getLogger(__name__)
 
-# Same three malls as black_friday_scraper.py, but these entries are
-# ongoing "regular" mall listings under Retail, refreshed on the normal
-# scrape cycle — not tied to the Black Friday seasonal window.
+# Same three malls as black_friday_scraper.py, but these entries are an
+# ongoing store directory, refreshed on the normal scrape cycle rather than
+# tied to the Black Friday seasonal window.
+#
+# Tagged as its own "Mall Directory" category (not "Retail") because these
+# have no real price or promotion — they're a list of tenants, not deals.
+# Mixing them into Retail diluted the real, priced Flipp-sourced deals with
+# generic "check in-store for offers" filler.
 MCARTHURGLEN_COORDS = (49.1975, -123.1406)
 TSAWWASSEN_MILLS_COORDS = (49.0381, -123.0860)
 METROTOWN_COORDS = (49.2273, -123.0032)
@@ -86,7 +91,7 @@ def _build_mall_deals(
             "source_id": f"{source_id_prefix}_{_slugify(store)}",
             "title": f"{store} at {mall_name}",
             "storeName": store,
-            "category": "Retail",
+            "category": "Mall Directory",
             "mall": mall_name,
             "city": city,
             "price": 0.0,

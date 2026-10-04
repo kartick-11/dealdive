@@ -12,8 +12,8 @@ DealDive is a Flutter app that aggregates real, local deals around Metro Vancouv
 
 | Category | Source |
 | --- | --- |
-| Grocery | RedFlagDeals Food & Drink forum |
-| Gas | Canadians for Affordable Energy price forecast |
+| Grocery | Flipp public flyer API, by store and by product term |
+| Gas | Canadians for Affordable Energy citywide price forecast (not per-station measured pricing) |
 | Restaurant | Curated real Vancouver spots + Scout Magazine RSS |
 | Happy Hour | happyhourvancouver.ca, scraped daily per venue |
 | Retail / Electronics | Flipp public flyer API, by category and by merchant |

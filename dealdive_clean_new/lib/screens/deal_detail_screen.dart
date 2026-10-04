@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import '../models/deal.dart';
+import '../theme/app_theme.dart';
 import '../utils/maps_launcher.dart';
+
+Color _onColor(Color color) =>
+    ThemeData.estimateBrightnessForColor(color) == Brightness.dark
+        ? Colors.white
+        : Colors.black87;
 
 class DealDetailScreen extends StatefulWidget {
   final Deal deal;
@@ -62,7 +68,16 @@ class _DealDetailScreenState extends State<DealDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final specials = _specials;
+    final categoryColor = AppColors.forCategory(deal.category);
+    final onCategoryColor = _onColor(categoryColor);
+    final subtleColor = scheme.onSurface.withValues(alpha: 0.6);
+
+    // Happy Hour's title repeats storeName ("{venue} — {Day} Happy Hour"
+    // vs "{venue}") and was overflowing off the top of this screen. Lead
+    // with the venue name; the day shows in its own chip below already.
+    final headline = _isHappyHour ? deal.storeName : deal.title;
 
     return Scaffold(
       appBar: AppBar(
@@ -97,7 +112,7 @@ class _DealDetailScreenState extends State<DealDetailScreen> {
               Container(
                 height: 160,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE0F7FA),
+                  color: categoryColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Center(
@@ -106,7 +121,7 @@ class _DealDetailScreenState extends State<DealDetailScreen> {
                         ? Icons.local_bar_outlined
                         : Icons.local_offer_outlined,
                     size: 48,
-                    color: const Color(0xFF00C4E6),
+                    color: categoryColor,
                   ),
                 ),
               ),
@@ -114,21 +129,21 @@ class _DealDetailScreenState extends State<DealDetailScreen> {
 
             // Title
             Text(
-              deal.title,
+              headline,
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 4),
 
-            // Store name
-            Text(
-              deal.storeName,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: Colors.grey[700],
+            // Store name (skipped for Happy Hour — it's already the headline)
+            if (!_isHappyHour) ...[
+              Text(
+                deal.storeName,
+                style: theme.textTheme.bodyMedium?.copyWith(color: subtleColor),
               ),
-            ),
-            const SizedBox(height: 8),
+              const SizedBox(height: 8),
+            ],
 
             // Category + optional distance
             Row(
@@ -136,24 +151,17 @@ class _DealDetailScreenState extends State<DealDetailScreen> {
                 Text(
                   deal.category,
                   style: theme.textTheme.labelMedium?.copyWith(
-                    color: Colors.grey[600],
+                    color: categoryColor,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 if (distanceText != null) ...[
                   const SizedBox(width: 8),
-                  const Text(
-                    '·',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey,
-                    ),
-                  ),
+                  Text('·', style: TextStyle(fontSize: 12, color: subtleColor)),
                   const SizedBox(width: 4),
                   Text(
                     distanceText!,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: Colors.grey[700],
-                    ),
+                    style: theme.textTheme.labelMedium?.copyWith(color: subtleColor),
                   ),
                 ],
               ],
@@ -168,16 +176,18 @@ class _DealDetailScreenState extends State<DealDetailScreen> {
                 children: [
                   if (deal.day != null)
                     Chip(
-                      avatar: const Icon(Icons.calendar_today, size: 16),
-                      label: Text(deal.day!),
-                      backgroundColor: const Color(0xFFE0F7FA),
+                      avatar: Icon(Icons.calendar_today, size: 16, color: onCategoryColor),
+                      label: Text(deal.day!, style: TextStyle(color: onCategoryColor, fontWeight: FontWeight.w600)),
+                      backgroundColor: categoryColor,
+                      side: BorderSide.none,
                       visualDensity: VisualDensity.compact,
                     ),
                   if (deal.neighbourhood != null)
                     Chip(
-                      avatar: const Icon(Icons.place_outlined, size: 16),
-                      label: Text(deal.neighbourhood!),
-                      backgroundColor: const Color(0xFFE0F7FA),
+                      avatar: Icon(Icons.place_outlined, size: 16, color: scheme.onSurface),
+                      label: Text(deal.neighbourhood!, style: TextStyle(color: scheme.onSurface)),
+                      backgroundColor: scheme.surface,
+                      side: BorderSide(color: theme.dividerColor, width: 1.5),
                       visualDensity: VisualDensity.compact,
                     ),
                 ],
@@ -193,7 +203,7 @@ class _DealDetailScreenState extends State<DealDetailScreen> {
                     ? 'From \$${deal.price.toStringAsFixed(2)}'
                     : '\$${deal.price.toStringAsFixed(2)}',
                 style: theme.textTheme.headlineSmall?.copyWith(
-                  color: const Color(0xFF00C4E6),
+                  color: categoryColor,
                   fontWeight: FontWeight.bold,
                 ),
               )
@@ -201,7 +211,7 @@ class _DealDetailScreenState extends State<DealDetailScreen> {
               Text(
                 'See offer details below',
                 style: theme.textTheme.titleMedium?.copyWith(
-                  color: const Color(0xFF00C4E6),
+                  color: categoryColor,
                   fontWeight: FontWeight.w600,
                 ),
               ),

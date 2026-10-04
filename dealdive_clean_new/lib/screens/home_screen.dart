@@ -3,9 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../models/deal.dart';
+import '../theme/app_theme.dart';
 import 'deal_detail_screen.dart';
 import '../services/location_service.dart';
 import '../utils/distance_utils.dart';
+
+/// Picks black or white text for best contrast against [color].
+Color _onColor(Color color) =>
+    ThemeData.estimateBrightnessForColor(color) == Brightness.dark
+        ? Colors.white
+        : Colors.black87;
 
 class HomeScreen extends StatefulWidget {
   final String selectedCategory;
@@ -70,6 +77,24 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
   String _selectedDay = 'All Days';
 
+  // Supermarket filter — appears only for Grocery, mirroring the day
+  // selector for Happy Hour. Names match grocery_scraper.py's merchant
+  // search list (app/scrapers/grocery_scraper.py: MERCHANT_QUERIES).
+  final List<String> _supermarkets = [
+    'All Supermarkets',
+    'Save-On-Foods',
+    'Safeway',
+    'No Frills',
+    'Real Canadian Superstore',
+    'Walmart',
+    'T&T Supermarket',
+    'Costco',
+    'Whole Foods',
+    'Sobeys',
+    'FreshCo',
+  ];
+  String _selectedSupermarket = 'All Supermarkets';
+
   // City filter — applies across every category, not just malls. Deals
   // with no city tag (e.g. national app promos) always show regardless
   // of which city is selected.
@@ -120,6 +145,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (oldWidget.selectedCategory != widget.selectedCategory) {
       _selectedMall = 'All Malls';
       _selectedDay = 'All Days';
+      _selectedSupermarket = 'All Supermarkets';
     }
   }
 
@@ -139,11 +165,15 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  bool get _showsMallSelector =>
-      widget.selectedCategory == 'Black Friday' ||
-      widget.selectedCategory == 'Retail';
+  // Only Black Friday carries per-mall tenant listings now — the
+  // old day-to-day mall directory under Retail was its own separate
+  // "Mall Directory" category and never real priced deals, so it no
+  // longer needs this selector mixed into Retail.
+  bool get _showsMallSelector => widget.selectedCategory == 'Black Friday';
 
   bool get _showsDaySelector => widget.selectedCategory == 'Happy Hour';
+
+  bool get _showsSupermarketSelector => widget.selectedCategory == 'Grocery';
 
   @override
   Widget build(BuildContext context) {
@@ -153,6 +183,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _buildCitySelector(),
         if (_showsMallSelector) _buildMallSelector(),
         if (_showsDaySelector) _buildDaySelector(),
+        if (_showsSupermarketSelector) _buildSupermarketSelector(),
         if (_isLoadingLocation)
           const Padding(
             padding: EdgeInsets.only(bottom: 4),
@@ -207,11 +238,29 @@ class _HomeScreenState extends State<HomeScreen> {
                     _selectedDay == 'All Days' ||
                     deal.day == _selectedDay;
 
+                // Matched loosely (contains, either direction) rather than
+                // an exact string match — Flipp's own merchant_name casing
+                // ("T&T" vs "T&T Supermarket", etc.) doesn't always match
+                // our curated chip labels exactly.
+                final matchesSupermarket = !_showsSupermarketSelector ||
+                    _selectedSupermarket == 'All Supermarkets' ||
+                    deal.storeName
+                        .toLowerCase()
+                        .contains(_selectedSupermarket.toLowerCase()) ||
+                    _selectedSupermarket
+                        .toLowerCase()
+                        .contains(deal.storeName.toLowerCase());
+
                 final q = widget.searchQuery.trim().toLowerCase();
                 final matchesSearch = q.isEmpty ||
                     deal.title.toLowerCase().contains(q) ||
                     deal.storeName.toLowerCase().contains(q);
-                return matchesCategory && matchesMall && matchesCity && matchesDay && matchesSearch;
+                return matchesCategory &&
+                    matchesMall &&
+                    matchesCity &&
+                    matchesDay &&
+                    matchesSupermarket &&
+                    matchesSearch;
               }).toList();
 
               if (allDeals.isEmpty) {
@@ -307,24 +356,20 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildSearchAndFilters() {
+    final theme = Theme.of(context);
+
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      color: Colors.white,
+      color: theme.scaffoldBackgroundColor,
       child: Column(
         children: [
           TextField(
             controller: _searchController,
             onChanged: widget.onSearchChanged,
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
               hintText: 'Search for pizza, milk, gas...',
-              prefixIcon: const Icon(Icons.search),
+              prefixIcon: Icon(Icons.search),
               isDense: true,
-              filled: true,
-              fillColor: const Color(0xFFF4F6F8),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -338,14 +383,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 final cat = _categories[index];
                 final isSelected = cat == widget.selectedCategory;
 
-                return ChoiceChip(
-                  label: Text(cat),
-                  selected: isSelected,
-                  onSelected: (_) => widget.onCategoryChanged(cat),
-                  selectedColor: const Color(0xFF00C4E6),
-                  labelStyle: TextStyle(
-                    color: isSelected ? Colors.white : Colors.black87,
-                  ),
+                return _FilterChip(
+                  label: cat,
+                  isSelected: isSelected,
+                  onSelected: () => widget.onCategoryChanged(cat),
                 );
               },
             ),
@@ -356,9 +397,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildCitySelector() {
+    final theme = Theme.of(context);
+
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      color: Colors.white,
+      color: theme.scaffoldBackgroundColor,
       child: SizedBox(
         height: 32,
         child: ListView.separated(
@@ -369,15 +412,11 @@ class _HomeScreenState extends State<HomeScreen> {
             final city = _cities[index];
             final isSelected = city == _selectedCity;
 
-            return ChoiceChip(
-              label: Text(city, style: const TextStyle(fontSize: 12)),
-              selected: isSelected,
-              onSelected: (_) => setState(() => _selectedCity = city),
-              selectedColor: const Color(0xFF00897B),
-              visualDensity: VisualDensity.compact,
-              labelStyle: TextStyle(
-                color: isSelected ? Colors.white : Colors.black87,
-              ),
+            return _FilterChip(
+              label: city,
+              isSelected: isSelected,
+              compact: true,
+              onSelected: () => setState(() => _selectedCity = city),
             );
           },
         ),
@@ -386,9 +425,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildDaySelector() {
+    final theme = Theme.of(context);
+
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      color: Colors.white,
+      color: theme.scaffoldBackgroundColor,
       child: SizedBox(
         height: 32,
         child: ListView.separated(
@@ -399,15 +440,39 @@ class _HomeScreenState extends State<HomeScreen> {
             final day = _days[index];
             final isSelected = day == _selectedDay;
 
-            return ChoiceChip(
-              label: Text(day, style: const TextStyle(fontSize: 12)),
-              selected: isSelected,
-              onSelected: (_) => setState(() => _selectedDay = day),
-              selectedColor: const Color(0xFFEF6C00),
-              visualDensity: VisualDensity.compact,
-              labelStyle: TextStyle(
-                color: isSelected ? Colors.white : Colors.black87,
-              ),
+            return _FilterChip(
+              label: day,
+              isSelected: isSelected,
+              compact: true,
+              onSelected: () => setState(() => _selectedDay = day),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSupermarketSelector() {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      color: theme.scaffoldBackgroundColor,
+      child: SizedBox(
+        height: 32,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: _supermarkets.length,
+          separatorBuilder: (context, index) => const SizedBox(width: 8),
+          itemBuilder: (context, index) {
+            final supermarket = _supermarkets[index];
+            final isSelected = supermarket == _selectedSupermarket;
+
+            return _FilterChip(
+              label: supermarket,
+              isSelected: isSelected,
+              compact: true,
+              onSelected: () => setState(() => _selectedSupermarket = supermarket),
             );
           },
         ),
@@ -416,9 +481,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildMallSelector() {
+    final theme = Theme.of(context);
+
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      color: Colors.white,
+      color: theme.scaffoldBackgroundColor,
       child: SizedBox(
         height: 32,
         child: ListView.separated(
@@ -429,18 +496,55 @@ class _HomeScreenState extends State<HomeScreen> {
             final mall = _malls[index];
             final isSelected = mall == _selectedMall;
 
-            return ChoiceChip(
-              label: Text(mall, style: const TextStyle(fontSize: 12)),
-              selected: isSelected,
-              onSelected: (_) => setState(() => _selectedMall = mall),
-              selectedColor: const Color(0xFF00C4E6).withValues(alpha: 0.8),
-              visualDensity: VisualDensity.compact,
-              labelStyle: TextStyle(
-                color: isSelected ? Colors.white : Colors.black87,
-              ),
+            return _FilterChip(
+              label: mall,
+              isSelected: isSelected,
+              compact: true,
+              onSelected: () => setState(() => _selectedMall = mall),
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+/// A single themed filter pill, shared by every selector row on this screen
+/// so category/city/day/mall chips all read as one consistent system
+/// instead of each row inventing its own ad hoc color.
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final VoidCallback onSelected;
+  final bool compact;
+
+  const _FilterChip({
+    required this.label,
+    required this.isSelected,
+    required this.onSelected,
+    this.compact = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return ChoiceChip(
+      label: Text(label, style: compact ? const TextStyle(fontSize: 12) : null),
+      selected: isSelected,
+      onSelected: (_) => onSelected(),
+      visualDensity: compact ? VisualDensity.compact : null,
+      backgroundColor: scheme.surface,
+      selectedColor: scheme.primary,
+      side: BorderSide(
+        color: isSelected ? scheme.primary : theme.dividerColor,
+        width: 1.5,
+      ),
+      shape: const StadiumBorder(),
+      labelStyle: TextStyle(
+        color: isSelected ? scheme.onPrimary : scheme.onSurface,
+        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
       ),
     );
   }
@@ -500,22 +604,35 @@ class _TopDealsStrip extends StatelessWidget {
                   ? null
                   : '${distanceKm.toStringAsFixed(1)} km';
 
+              final theme = Theme.of(context);
+              final scheme = theme.colorScheme;
+              final subtleColor = scheme.onSurface.withValues(alpha: 0.6);
+              final categoryColor = AppColors.forCategory(deal.category);
+
+              // Happy Hour's title is "{venue} — {Day} Happy Hour" and
+              // storeName is just "{venue}" — showing both stacked repeats
+              // the venue name twice. Lead with the venue, and use the day
+              // as the subtitle instead of repeating it.
+              final subtitle = deal.day != null
+                  ? '${deal.day} Happy Hour'
+                  : deal.category;
+
               return GestureDetector(
                 onTap: () => onTapDeal(deal),
                 child: Container(
                   width: 220,
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: const [
-                      BoxShadow(
-                        blurRadius: 4,
-                        color: Colors.black12,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
+                    color: Color.alphaBlend(
+                      categoryColor.withValues(alpha: 0.12),
+                      theme.cardTheme.color ?? scheme.surface,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: categoryColor.withValues(alpha: 0.4),
+                      width: 1.5,
+                    ),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -524,12 +641,11 @@ class _TopDealsStrip extends StatelessWidget {
                         children: [
                           Flexible(
                             child: Text(
-                              deal.title,
+                              deal.storeName,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
                           ),
@@ -541,41 +657,34 @@ class _TopDealsStrip extends StatelessWidget {
                                   ? Icons.bookmark
                                   : Icons.bookmark_border_outlined,
                               size: 18,
-                              color: isSaved
-                                  ? const Color(0xFF00C4E6)
-                                  : Colors.grey,
+                              color: isSaved ? scheme.primary : subtleColor,
                             ),
                             onPressed: () => onToggleSaved(deal),
                           )
                         ],
                       ),
                       Text(
-                        deal.storeName,
+                        subtitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[700],
-                        ),
+                        style: TextStyle(fontSize: 12, color: subtleColor),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         deal.price > 0
-                            ? '\$${deal.price.toStringAsFixed(2)} • ${deal.category}'
-                            : 'Offers • ${deal.category}',
+                            ? '\$${deal.price.toStringAsFixed(2)}'
+                            : 'Offers',
                         style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[800],
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: categoryColor,
                         ),
                       ),
                       if (distanceText != null) ...[
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 2),
                         Text(
                           distanceText,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey[600],
-                          ),
+                          style: TextStyle(fontSize: 11, color: subtleColor),
                         ),
                       ],
                     ],
@@ -609,12 +718,30 @@ class _DealCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final subtleColor = scheme.onSurface.withValues(alpha: 0.6);
+    final categoryColor = AppColors.forCategory(deal.category);
+    final onCategoryColor = _onColor(categoryColor);
+
+    // Happy Hour's title repeats storeName ("{venue} — {Day} Happy Hour"
+    // vs "{venue}") — lead with the venue and show the day separately
+    // instead of printing the venue name twice.
+    final headline = deal.day != null ? deal.storeName : deal.title;
+    final subline = deal.day != null ? '${deal.day} Happy Hour' : deal.storeName;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      elevation: 1.5,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: Color.alphaBlend(
+        categoryColor.withValues(alpha: 0.08),
+        theme.cardTheme.color ?? scheme.surface,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: categoryColor.withValues(alpha: 0.35), width: 1.5),
+      ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -623,26 +750,28 @@ class _DealCard extends StatelessWidget {
             children: [
               // Price bubble — some deals (Black Friday, mall listings)
               // don't have one meaningful price, so show a neutral label
-              // instead of a misleading $0.00.
+              // instead of a misleading $0.00. Tinted per-category so a
+              // scrolling list of cards reads as varied, not one flat color
+              // repeated for every deal regardless of type.
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF00C4E6),
+                  color: categoryColor,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: deal.price > 0
                     ? Text(
                         '\$${deal.price.toStringAsFixed(2)}',
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: onCategoryColor,
                           fontWeight: FontWeight.bold,
                         ),
                       )
-                    : const Text(
+                    : Text(
                         'Offers',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: onCategoryColor,
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                         ),
@@ -655,7 +784,7 @@ class _DealCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      deal.title,
+                      headline,
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -663,11 +792,8 @@ class _DealCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      deal.storeName,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[700],
-                      ),
+                      subline,
+                      style: TextStyle(fontSize: 14, color: subtleColor),
                     ),
                     const SizedBox(height: 4),
                     Row(
@@ -676,25 +802,17 @@ class _DealCard extends StatelessWidget {
                           deal.category,
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey[600],
+                            fontWeight: FontWeight.w600,
+                            color: categoryColor,
                           ),
                         ),
                         if (distanceText != null) ...[
                           const SizedBox(width: 8),
-                          const Text(
-                            '·',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
-                            ),
-                          ),
+                          Text('·', style: TextStyle(fontSize: 12, color: subtleColor)),
                           const SizedBox(width: 4),
                           Text(
                             distanceText!,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[700],
-                            ),
+                            style: TextStyle(fontSize: 12, color: subtleColor),
                           ),
                         ],
                       ],
@@ -717,8 +835,7 @@ class _DealCard extends StatelessWidget {
                             isSaved
                                 ? Icons.bookmark
                                 : Icons.bookmark_border_outlined,
-                            color:
-                                isSaved ? const Color(0xFF00C4E6) : Colors.grey,
+                            color: isSaved ? scheme.primary : subtleColor,
                           ),
                         ),
                       ],

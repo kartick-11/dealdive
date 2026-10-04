@@ -8,6 +8,7 @@ import 'screens/map_screen.dart';
 import 'screens/saved_screen.dart';
 import 'services/saved_deals_service.dart';
 import 'profile_screen.dart';
+import 'theme/app_theme.dart';
 
 class MainTabs extends StatefulWidget {
   const MainTabs({super.key});
@@ -134,14 +135,25 @@ class _MainTabsState extends State<MainTabs> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          titles[_selectedIndex],
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        centerTitle: true,
+        title: Text(titles[_selectedIndex]),
         actions: [
+          ValueListenableBuilder<ThemeMode>(
+            valueListenable: AppTheme.themeModeNotifier,
+            builder: (context, mode, _) {
+              final isDark = mode == ThemeMode.dark ||
+                  (mode == ThemeMode.system &&
+                      MediaQuery.platformBrightnessOf(context) == Brightness.dark);
+              return IconButton(
+                icon: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
+                tooltip: isDark ? 'Switch to light theme' : 'Switch to dark theme',
+                onPressed: () => AppTheme.toggleThemeMode(
+                  isDark ? Brightness.dark : Brightness.light,
+                ),
+              );
+            },
+          ),
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout_rounded),
             onPressed: _signOut,
           ),
         ],
@@ -180,9 +192,6 @@ class _MainTabsState extends State<MainTabs> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: _onNavTap,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: const Color(0xFF00C4E6),
-        unselectedItemColor: Colors.grey,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.local_offer_outlined),

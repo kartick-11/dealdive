@@ -125,26 +125,28 @@ def _build_deals_from_price(price: float, source_label: str) -> list[dict]:
         "fallback": "fallback estimate — live sources unavailable",
     }[source_label]
 
+    # Previously each station got a random +/-2c jitter to look like a real
+    # measured per-station price. That was fabricated precision — the
+    # source only gives one citywide number — so every station now shows
+    # that same real number, with the description honest about what it is.
     for station in VANCOUVER_STATIONS:
-        import random
-        variation = random.uniform(-0.02, 0.02)
-        station_price = round(price + variation, 3)
-
         deals.append({
             "source": source_label,
             "source_id": f"gas_{station['name'].replace(' ', '_')}",
-            "title": f"Gas – ${station_price:.3f}/L",
+            "title": f"Gas – ${price:.3f}/L",
             "storeName": station["name"],
             "category": "Gas",
-            "price": station_price,
+            "city": "Vancouver",
+            "price": price,
             "latitude": station["lat"],
             "longitude": station["lng"],
             "description": (
-                f"Regular unleaded {label_text} for Vancouver at "
-                f"{station['name']}. Individual station prices vary slightly."
+                f"Vancouver regular unleaded, {label_text}. This is a "
+                f"citywide figure, not a price measured at {station['name']} "
+                f"specifically — check the pump for the exact price."
             ),
             "imageUrl": None,
-            "isHot": station_price < 1.95,
+            "isHot": price < 1.95,
             "expires_at": expires_at,
             "scraped_at": datetime.now(timezone.utc),
         })

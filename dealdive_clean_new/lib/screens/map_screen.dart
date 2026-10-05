@@ -10,8 +10,35 @@ import '../models/deal.dart';
 import '../models/nearby_place.dart';
 import '../services/location_service.dart';
 import '../services/places_service.dart';
+import '../theme/app_theme.dart';
 import '../utils/distance_utils.dart';
 import 'deal_detail_screen.dart';
+
+// Standard Google "night mode" style JSON, applied to the map when the app
+// is in dark theme so the map doesn't stay a glaring white rectangle inside
+// an otherwise dark UI.
+const String _darkMapStyle = '''
+[
+  {"elementType": "geometry", "stylers": [{"color": "#242f3e"}]},
+  {"elementType": "labels.text.stroke", "stylers": [{"color": "#242f3e"}]},
+  {"elementType": "labels.text.fill", "stylers": [{"color": "#746855"}]},
+  {"featureType": "administrative.locality", "elementType": "labels.text.fill", "stylers": [{"color": "#d59563"}]},
+  {"featureType": "poi", "elementType": "labels.text.fill", "stylers": [{"color": "#d59563"}]},
+  {"featureType": "poi.park", "elementType": "geometry", "stylers": [{"color": "#263c3f"}]},
+  {"featureType": "poi.park", "elementType": "labels.text.fill", "stylers": [{"color": "#6b9a76"}]},
+  {"featureType": "road", "elementType": "geometry", "stylers": [{"color": "#38414e"}]},
+  {"featureType": "road", "elementType": "geometry.stroke", "stylers": [{"color": "#212a37"}]},
+  {"featureType": "road", "elementType": "labels.text.fill", "stylers": [{"color": "#9ca5b3"}]},
+  {"featureType": "road.highway", "elementType": "geometry", "stylers": [{"color": "#746855"}]},
+  {"featureType": "road.highway", "elementType": "geometry.stroke", "stylers": [{"color": "#1f2835"}]},
+  {"featureType": "road.highway", "elementType": "labels.text.fill", "stylers": [{"color": "#f3d19c"}]},
+  {"featureType": "transit", "elementType": "geometry", "stylers": [{"color": "#2f3948"}]},
+  {"featureType": "transit.station", "elementType": "labels.text.fill", "stylers": [{"color": "#d59563"}]},
+  {"featureType": "water", "elementType": "geometry", "stylers": [{"color": "#17263c"}]},
+  {"featureType": "water", "elementType": "labels.text.fill", "stylers": [{"color": "#515c6d"}]},
+  {"featureType": "water", "elementType": "labels.text.stroke", "stylers": [{"color": "#17263c"}]}
+]
+''';
 
 class MapScreen extends StatefulWidget {
   final String selectedCategory;
@@ -51,6 +78,27 @@ class _MapScreenState extends State<MapScreen> {
   void initState() {
     super.initState();
     _loadUserLocation();
+    // Re-style the map whenever the app's light/dark toggle changes,
+    // not just on first load.
+    AppTheme.themeModeNotifier.addListener(_onThemeChanged);
+  }
+
+  void _onThemeChanged() {
+    if (!mounted) return;
+    _applyMapStyle();
+  }
+
+  bool _isDarkMode() {
+    final mode = AppTheme.themeModeNotifier.value;
+    if (mode == ThemeMode.dark) return true;
+    if (mode == ThemeMode.light) return false;
+    return MediaQuery.platformBrightnessOf(context) == Brightness.dark;
+  }
+
+  Future<void> _applyMapStyle() async {
+    if (!_mapController.isCompleted) return;
+    final controller = await _mapController.future;
+    await controller.setMapStyle(_isDarkMode() ? _darkMapStyle : null);
   }
 
   Future<void> _loadUserLocation() async {
@@ -91,6 +139,12 @@ class _MapScreenState extends State<MapScreen> {
 
     if (!mounted) return;
     setState(() => _isLoadingPlaces = false);
+  }
+
+  @override
+  void dispose() {
+    AppTheme.themeModeNotifier.removeListener(_onThemeChanged);
+    super.dispose();
   }
 
   @override
@@ -285,6 +339,7 @@ class _MapScreenState extends State<MapScreen> {
                   if (!_mapController.isCompleted) {
                     _mapController.complete(controller);
                   }
+                  _applyMapStyle();
                 },
                 onCameraMove: (position) {
                   _currentZoom = position.zoom;
@@ -317,24 +372,24 @@ class _MapScreenState extends State<MapScreen> {
               ),
             ),
 
-          // 📍 MY LOCATION BUTTON
-          if (_userPosition != null)
-            Positioned(
-              right: 16,
-              bottom: 160,
-              child: FloatingActionButton.small(
-                heroTag: 'my_location',
-                onPressed: _recenterOnUser,
-                child: const Icon(Icons.my_location),
-              ),
-            ),
-
-          // ➕➖ ZOOM CONTROLS
+          // 📍 MY LOCATION BUTTON + ➕➖ ZOOM CONTROLS
+          // Stacked in one Column so their spacing is computed, not
+          // guessed via separate Positioned offsets — that guesswork is
+          // what let the two groups overlap before.
           Positioned(
             right: 16,
             bottom: 80,
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
+                if (_userPosition != null) ...[
+                  FloatingActionButton.small(
+                    heroTag: 'my_location',
+                    onPressed: _recenterOnUser,
+                    child: const Icon(Icons.my_location),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 FloatingActionButton.small(
                   heroTag: 'zoom_in',
                   onPressed: _zoomIn,

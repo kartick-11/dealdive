@@ -165,6 +165,56 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // Pull-to-refresh handler. The deal list is already a live Firestore
+  // stream, so this doesn't need to replace any data itself — it just
+  // forces a fresh read from the server (bypassing the local cache) so a
+  // manual pull always feels like it did something, even if the stream
+  // was already current.
+  Future<void> _refreshDeals() async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('deals')
+          .get(const GetOptions(source: Source.server));
+    } catch (_) {
+      // Offline or request failed — the live stream will pick back up
+      // once connectivity returns, so there's nothing else to do here.
+    }
+    await _loadUserLocation();
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _selectedCity = 'All Cities';
+      _selectedMall = 'All Malls';
+      _selectedDay = 'All Days';
+      _selectedSupermarket = 'All Supermarkets';
+    });
+    _searchController.clear();
+    widget.onSearchChanged('');
+  }
+
+  /// Wraps non-list states (empty, error) in a scrollable, pull-to-refresh
+  /// capable container so the refresh gesture works everywhere, not just
+  /// once deals are showing.
+  Widget _scrollableCenter(Widget child) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return RefreshIndicator(
+          onRefresh: _refreshDeals,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: [
+              ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Center(child: child),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   // Only Black Friday carries per-mall tenant listings now — the
   // old day-to-day mall directory under Retail was its own separate
   // "Mall Directory" category and never real priced deals, so it no
@@ -197,24 +247,44 @@ class _HomeScreenState extends State<HomeScreen> {
                 .snapshots(),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
-                return const Center(
-                  child: Text(
-                    'Error loading deals',
-                    style: TextStyle(color: Colors.red),
+                return _scrollableCenter(
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.cloud_off_rounded,
+                          size: 48,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withValues(alpha: 0.3),
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Couldn\'t load deals. Pull down to try again.',
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
                   ),
                 );
               }
 
               if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
+                return const _DealListSkeleton();
               }
 
               final docs = snapshot.data!.docs;
               if (docs.isEmpty) {
-                return const Center(
-                  child: Text(
-                    'No deals yet.\nUse the seed tool or add deals in Firestore.',
-                    textAlign: TextAlign.center,
+                return _scrollableCenter(
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 32),
+                    child: Text(
+                      'No deals yet.\nUse the seed tool or add deals in Firestore.',
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                 );
               }
@@ -264,10 +334,47 @@ class _HomeScreenState extends State<HomeScreen> {
               }).toList();
 
               if (allDeals.isEmpty) {
-                return const Center(
-                  child: Text(
-                    'No deals match your filters.\nTry changing category or search.',
-                    textAlign: TextAlign.center,
+                final categoryLabel = widget.selectedCategory == 'All'
+                    ? 'deals'
+                    : '${widget.selectedCategory} deals';
+                final hasFilters = widget.searchQuery.trim().isNotEmpty ||
+                    _selectedCity != 'All Cities' ||
+                    (_showsMallSelector && _selectedMall != 'All Malls') ||
+                    (_showsDaySelector && _selectedDay != 'All Days') ||
+                    (_showsSupermarketSelector &&
+                        _selectedSupermarket != 'All Supermarkets');
+
+                return _scrollableCenter(
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.search_off_rounded,
+                          size: 48,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withValues(alpha: 0.3),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          hasFilters
+                              ? 'No $categoryLabel match your filters right now.'
+                              : 'No $categoryLabel right now — check back after the next scrape.',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
+                        if (hasFilters) ...[
+                          const SizedBox(height: 12),
+                          TextButton(
+                            onPressed: _clearFilters,
+                            child: const Text('Clear filters'),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 );
               }
@@ -299,35 +406,39 @@ class _HomeScreenState extends State<HomeScreen> {
               final remainingDeals =
                   allDeals.where((d) => !topIds.contains(d.id)).toList();
 
-              return ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  if (topDeals.isNotEmpty)
-                    _TopDealsStrip(
-                      deals: topDeals,
-                      userPosition: _userPosition,
-                      savedDealIds: widget.savedDealIds,
-                      onTapDeal: _openDealDetail,
-                      onToggleSaved: widget.onToggleSaved,
-                    ),
-                  if (topDeals.isNotEmpty)
-                    const SizedBox(height: 16),
-                  ...remainingDeals.map((deal) {
-                    final isSaved = widget.savedDealIds.contains(deal.id);
-                    final distanceKm = _distanceForDeal(deal);
-                    final distanceText = distanceKm == null
-                        ? null
-                        : '${distanceKm.toStringAsFixed(1)} km away';
-                    return _DealCard(
-                      deal: deal,
-                      isSaved: isSaved,
-                      distanceText: distanceText,
-                      onTap: () => _openDealDetail(deal),
-                      onViewOnMap: () => widget.onViewOnMap(deal),
-                      onToggleSaved: () => widget.onToggleSaved(deal),
-                    );
-                  }),
-                ],
+              return RefreshIndicator(
+                onRefresh: _refreshDeals,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    if (topDeals.isNotEmpty)
+                      _TopDealsStrip(
+                        deals: topDeals,
+                        userPosition: _userPosition,
+                        savedDealIds: widget.savedDealIds,
+                        onTapDeal: _openDealDetail,
+                        onToggleSaved: widget.onToggleSaved,
+                      ),
+                    if (topDeals.isNotEmpty)
+                      const SizedBox(height: 16),
+                    ...remainingDeals.map((deal) {
+                      final isSaved = widget.savedDealIds.contains(deal.id);
+                      final distanceKm = _distanceForDeal(deal);
+                      final distanceText = distanceKm == null
+                          ? null
+                          : '${distanceKm.toStringAsFixed(1)} km away';
+                      return _DealCard(
+                        deal: deal,
+                        isSaved: isSaved,
+                        distanceText: distanceText,
+                        onTap: () => _openDealDetail(deal),
+                        onViewOnMap: () => widget.onViewOnMap(deal),
+                        onToggleSaved: () => widget.onToggleSaved(deal),
+                      );
+                    }),
+                  ],
+                ),
               );
             },
           ),
@@ -546,6 +657,116 @@ class _FilterChip extends StatelessWidget {
         color: isSelected ? scheme.onPrimary : scheme.onSurface,
         fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
       ),
+    );
+  }
+}
+
+/// A single pulsing placeholder bar, used to build skeleton deal cards
+/// while Firestore's first snapshot is still loading.
+class _SkeletonBar extends StatelessWidget {
+  final double width;
+  final double height;
+  final Color color;
+
+  const _SkeletonBar({
+    required this.color,
+    this.width = double.infinity,
+    this.height = 12,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(4),
+      ),
+    );
+  }
+}
+
+/// One skeleton card shaped like a real `_DealCard`, with a gentle pulse
+/// animation so the loading state reads as "working", not "frozen".
+class _SkeletonCard extends StatefulWidget {
+  const _SkeletonCard();
+
+  @override
+  State<_SkeletonCard> createState() => _SkeletonCardState();
+}
+
+class _SkeletonCardState extends State<_SkeletonCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final base = scheme.onSurface.withValues(alpha: 0.06);
+    final highlight = scheme.onSurface.withValues(alpha: 0.14);
+
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        final color = Color.lerp(base, highlight, _controller.value)!;
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 56,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _SkeletonBar(color: color, height: 14),
+                      const SizedBox(height: 8),
+                      _SkeletonBar(color: color, width: 140, height: 12),
+                      const SizedBox(height: 10),
+                      _SkeletonBar(color: color, width: 70, height: 10),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Skeleton list shown while the first Firestore snapshot is loading,
+/// standing in for the old bare spinner.
+class _DealListSkeleton extends StatelessWidget {
+  const _DealListSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: 6,
+      itemBuilder: (context, index) => const _SkeletonCard(),
     );
   }
 }
